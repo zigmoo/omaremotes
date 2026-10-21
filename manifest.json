@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "moo.omaremotes",
+  "name": "OmaRemotes",
+  "version": "0.1.0",
+  "author": "Jason Ziegler",
+  "description": "Pick an inventory machine and open a fitted screen-control window.",
+  "kinds": ["bar-widget", "service"],
+  "entryPoints": {"barWidget": "Widget.qml", "service": "Service.qml"},
+  "barWidget": {"displayName": "OmaRemotes", "category": "System", "allowMultiple": false, "defaultSection": "right"}
+}
