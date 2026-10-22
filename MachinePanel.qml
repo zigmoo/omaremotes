@@ -23,18 +23,47 @@ Item {
   property bool busy: false
   property var launchKeys: ({})
   property string routeNote: ""
+  property string feedbackMachine: ""
+  readonly property string selectedMachine: selected && typeof selected.machine === "string" ? selected.machine : ""
+  readonly property bool focusedFeedback: feedbackMachine !== "" && feedbackMachine === selectedMachine
+  onSelectedMachineChanged: clearFeedback()
   readonly property var filtered: machines.filter(function(m) {
     var query = search.text.toLowerCase().trim()
     return !query || (m.machine + " " + m.label).toLowerCase().indexOf(query) !== -1
   })
   readonly property Item focusTarget: machineList
   signal launched()
+  signal dismiss()
   Translations { id: strings }
+
+  function clearFeedback() {
+    routeNote = ""
+    feedbackMachine = ""
+    failed = false
+    message = strings.t("ready")
+  }
+  function formatInspection(inspection) {
+    if (!inspection || typeof inspection !== "object" || Array.isArray(inspection)) return ""
+    var lines = []
+    if (typeof inspection.summary === "string") {
+      var summary = inspection.summary.replace(/\s+/g, " ").trim().slice(0, 400)
+      if (summary) lines.push(summary)
+    }
+    if (Array.isArray(inspection.nextSteps)) {
+      inspection.nextSteps.slice(0, 3).forEach(function(step) {
+        if (typeof step !== "string") return
+        var text = step.replace(/\s+/g, " ").trim().slice(0, 240)
+        if (text) lines.push("• " + text)
+      })
+    }
+    return lines.join("\n")
+  }
 
   function assignLaunchKeys(entries) {
     var keys = Object.assign({}, launchKeys)
+    Object.keys(keys).forEach(function(machine) { if (keys[machine] === "q") delete keys[machine] })
     var used = Object.keys(keys).map(function(machine) { return keys[machine] })
-    var alphabet = "1234567890abcdefghijklmnopqrstuvwxyz"
+    var alphabet = "1234567890abcdefghijklmnoprstuvwxyz"
     entries.filter(function(m) { return !m.local }).map(function(m) { return m.machine }).sort().forEach(function(machine) {
       if (keys[machine]) return
       for (var i = 0; i < alphabet.length; i++) {
@@ -64,19 +93,22 @@ Item {
   }
   function invoke(action, machine) {
     if (busy) return
+    if (action === "connect" || action === "reconnect") clearFeedback()
     if (!controller.running) {
       controller.running = true
       return
     }
     busy = true
     controller.action = action
+    controller.machine = machine || ""
     loading = action === "list"
-    if (!(action === "list" && silentRefresh)) failed = false
+    var keepFeedback = focusedFeedback && (action === "list" || machine !== selectedMachine || (action === "status" && failed && routeNote !== ""))
+    if (!(action === "list" && silentRefresh) && !keepFeedback) failed = false
     if (action === "connect" || action === "reconnect") {
+      feedbackMachine = machine
       message = strings.t("starting").arg(machine)
-      routeNote = ""
     }
-    else if (action === "list" && !silentRefresh) message = strings.t("loading")
+    else if (action === "list" && !silentRefresh && !focusedFeedback) message = strings.t("loading")
     var request = {action:action, route:route}
     if (machine) request.machine = machine
     controller.write(JSON.stringify(request) + "\n")
@@ -88,7 +120,16 @@ Item {
 
   function acceptResult(result) {
       loading = false
+      var connecting = controller.action === "connect" || controller.action === "reconnect"
+      var matchesTarget = controller.machine !== "" && controller.machine === selectedMachine
       try {
+        if (matchesTarget) {
+          var inspection = formatInspection(result.inspection)
+          if (inspection || connecting) {
+            routeNote = inspection || (typeof result.fallbackReason === "string" ? result.fallbackReason.slice(0, 600) : "")
+            feedbackMachine = controller.machine
+          }
+        }
         if (!result.ok) throw new Error(result.error || "Could not open the control window.")
         if (controller.action === "list") {
           assignLaunchKeys(result.machines)
@@ -98,29 +139,38 @@ Item {
             var updated = result.machines.filter(function(m) { return m.machine === root.selected.machine })
             selected = updated.length ? updated[0] : null
           }
-          if (!silentRefresh) message = strings.t("ready")
-        } else if (controller.action === "connect" || controller.action === "reconnect") {
+          if (!silentRefresh && !focusedFeedback) message = strings.t("ready")
+        } else if (connecting) {
           sessionMachine = result.machine
           sessionState = result.state
-          message = result.message
-          routeNote = result.fallbackReason || ""
+          if (matchesTarget) {
+            if (sessionState === "desktop_locked") message = result.reason || strings.t("desktopLocked")
+            else if (sessionState === "unlocking") message = strings.t("unlockingDesktop")
+            else message = result.message
+          }
           if (sessionState === "connected" || sessionState === "viewer_open") launched()
         } else if (controller.action === "disconnect" || controller.action === "status") {
           var previousState = sessionState
           sessionState = result.state
-          if (result.state === "closed") message = strings.t("closed")
-          else if (result.state === "failed") {
-            failed = true
-            message = result.reason || strings.t("connectionFailed")
-          } else if (result.state === "connected") {
-            message = strings.t("connected").arg(sessionMachine)
-            if (previousState !== "connected") launched()
-          } else if (result.state === "authenticated") message = strings.t("waitingForDesktop")
-          else if (result.state === "retrying") message = strings.t("retryingLogin")
+          if (matchesTarget && !(focusedFeedback && failed && routeNote !== "")) {
+            if (result.state === "closed") message = strings.t("closed")
+            else if (result.state === "failed") {
+              failed = true
+              message = result.reason || strings.t("connectionFailed")
+            } else if (result.state === "connected" || result.state === "viewer_open") {
+              message = result.message || strings.t("connected").arg(sessionMachine)
+              if (previousState !== result.state) launched()
+            } else if (result.state === "authenticated") message = strings.t("waitingForDesktop")
+            else if (result.state === "retrying") message = strings.t("retryingLogin")
+            else if (result.state === "desktop_locked") message = result.reason || strings.t("desktopLocked")
+            else if (result.state === "unlocking") message = strings.t("unlockingDesktop")
+          }
         }
       } catch (error) {
-        failed = true
-        message = error.message || "Could not read the connection result."
+        if ((controller.machine === "" || matchesTarget) && !(controller.action === "list" && focusedFeedback)) {
+          failed = true
+          message = (error.message || "Could not read the connection result.").slice(0, 320)
+        }
       }
       busy = false
   }
@@ -128,6 +178,7 @@ Item {
   Process {
     id: controller
     property string action: ""
+    property string machine: ""
     property string lastError: ""
     command: ["bash", "-lc", "exec oma_remotes_tool serve"]
     running: true
@@ -205,7 +256,10 @@ Item {
       Keys.onReturnPressed: root.connectSelected()
       Keys.onPressed: function(event) {
         if (!activeFocus || event.isAutoRepeat || event.modifiers !== Qt.NoModifier) return
-        if (event.key === Qt.Key_Slash) {
+        if (event.key === Qt.Key_Q) {
+          root.dismiss()
+          event.accepted = true
+        } else if (event.key === Qt.Key_Slash) {
           search.forceActiveFocus()
           event.accepted = true
         } else if (root.fastConnect(event.text.toLowerCase())) event.accepted = true

@@ -32,6 +32,7 @@ Item {
         plugin: root.moduleName,
         source: Qt.resolvedUrl("MachinePanel.qml").toString(),
         shortcutsAvailable: typeof machines.fastConnect === "function",
+        inspectionAvailable: typeof machines.formatInspection === "function",
         machineCount: machines.machines.length,
         shortcutCount: Object.keys(machines.launchKeys || {}).length,
         menuOpen: root.menuOpen
@@ -46,6 +47,6 @@ Item {
     focusTarget: machines.focusTarget
     contentWidth: fittedContentWidth(Commons.Style.space(590))
     contentHeight: fittedContentHeight(Commons.Style.space(620))
-    MachinePanel { id: machines; anchors.fill: parent; onLaunched: root.close() }
+    MachinePanel { id: machines; anchors.fill: parent; onLaunched: root.close(); onDismiss: root.close() }
   }
 }

@@ -26,8 +26,11 @@ machine list: press the key shown on a row to connect, or `/` to focus search.
 Typing in search never launches a shortcut; Down returns to the list and Enter
 opens a single matching machine. Keys stay assigned to machines while the picker
 is running, independent of Tailscale sorting and search filters. A fresh picker
-assigns available keys in machine-name order; at most 36 machines have shortcuts.
-Arrow keys and Enter remain available for every row.
+assigns available keys in machine-name order; at most 35 machines have shortcuts.
+`q` closes the picker while browsing the list and remains ordinary text in
+search. Escape also closes the picker. Closing the picker leaves remote sessions
+running. Arrow keys and Enter remain available for every row. Reopening the
+picker preserves its selected machine while the shell remains running.
 
 For a Linux host reached by trusted SSH, Connect can install a missing
 `gliff-server` into `~/.local/bin` from a prepared local binary after checking
@@ -55,10 +58,13 @@ metrics. The legacy Remmina route retains manual login and disables password
 storage. Gliff uses CPU video; legacy clipboard sharing and Remmina telemetry
 remain disabled.
 
-Screen Sharing authentication and desktop unlocking are distinct. The current
-`connected` state confirms authentication plus rendered frames; it does not yet
-verify that the intended macOS user is unlocked. Completing both steps with the
-saved machine credential is required follow-on work. Session selection for a
+Screen Sharing authentication and desktop unlocking are distinct. The
+`connected` state requires a ready viewer and native metadata confirming that
+the intended macOS user is unlocked. A locked or unverified session remains
+`desktop_locked`, with a specific explanation in the picker. Read-only session
+checks recognize manual unlock and relock without closing the viewer. Automatic
+password entry remains unfinished while macOS Accessibility permission and
+live lock-screen control inspection are pending. Session selection for a
 different user is not an unlock command for the current user's locked desktop.
 
 Mac text clipboard sharing defaults off and must be enabled per profile. When
