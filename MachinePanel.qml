@@ -167,7 +167,7 @@ Item {
         Layout.fillWidth: true
         spacing: Commons.Style.space(3)
         PlainText { text: strings.t("title"); font.pixelSize: Commons.Style.space(25); font.bold: true }
-        PlainText { text: strings.t("subtitle"); opacity: 0.72 }
+        PlainText { text: strings.t("subtitle") }
       }
       Ui.Button { text: strings.t("refresh"); focusable: true; enabled: !root.busy; onClicked: root.refresh() }
     }
@@ -176,6 +176,7 @@ Item {
       objectName: "machineSearch"
       Layout.fillWidth: true
       placeholderText: strings.t("search")
+      placeholderTextColor: Commons.Color.popups.text
       onTextChanged: machineList.currentIndex = -1
       Keys.onDownPressed: { machineList.forceActiveFocus(); machineList.currentIndex = 0 }
       Keys.onReturnPressed: {
@@ -189,7 +190,6 @@ Item {
       Layout.fillWidth: true
       text: search.activeFocus ? strings.t("searchKeys") : strings.t("launchKeys")
       wrapMode: Text.WordWrap
-      opacity: 0.6
       font.pixelSize: Commons.Style.space(11)
     }
     ListView {
@@ -251,11 +251,11 @@ Item {
                 Layout.fillWidth: true
                 spacing: Commons.Style.space(3)
                 PlainText { Layout.fillWidth: true; text: machineRow.modelData.machine; elide: Text.ElideRight; font.bold: true }
-                PlainText { Layout.fillWidth: true; text: machineRow.modelData.label + (machineRow.modelData.platform ? " · " + machineRow.modelData.platform : ""); elide: Text.ElideRight; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
+                PlainText { Layout.fillWidth: true; text: machineRow.modelData.label + (machineRow.modelData.platform ? " · " + machineRow.modelData.platform : ""); elide: Text.ElideRight; font.pixelSize: Commons.Style.space(11) }
               }
               PlainText {
                 text: machineRow.modelData.local ? strings.t("local") : strings.t("ts." + machineRow.modelData.availability)
-                opacity: 0.6; font.pixelSize: Commons.Style.space(11)
+                font.pixelSize: Commons.Style.space(11)
               }
             }
           }
@@ -288,7 +288,7 @@ Item {
     Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(Commons.Color.popups.text, 0.14) }
     RowLayout {
       Layout.fillWidth: true
-      PlainText { text: strings.t("route"); opacity: 0.7 }
+      PlainText { text: strings.t("route") }
       Controls.ComboBox {
         id: routePicker
         Layout.fillWidth: true
@@ -312,12 +312,11 @@ Item {
       visible: root.routeNote !== ""
       text: root.routeNote
       wrapMode: Text.WordWrap
-      opacity: 0.7
       font.pixelSize: Commons.Style.space(11)
     }
     RowLayout {
       Layout.fillWidth: true
-      PlainText { Layout.fillWidth: true; Layout.maximumWidth: Commons.Style.space(310); text: strings.t("fit"); wrapMode: Text.WordWrap; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
+      PlainText { Layout.fillWidth: true; Layout.maximumWidth: Commons.Style.space(310); text: strings.t("fit"); wrapMode: Text.WordWrap; font.pixelSize: Commons.Style.space(11) }
       Ui.Button {
         visible: root.sessionState !== "closed" && root.sessionMachine !== ""
         text: strings.t("disconnect"); focusable: true; enabled: !root.busy
@@ -338,6 +337,6 @@ Item {
         onClicked: root.connectSelected()
       }
     }
-    PlainText { Layout.fillWidth: true; text: strings.t(root.availabilitySource === "tailscale" ? "tailscaleNote" : "tailscaleMissing"); wrapMode: Text.WordWrap; font.pixelSize: Commons.Style.space(10); opacity: 0.45 }
+    PlainText { Layout.fillWidth: true; text: strings.t(root.availabilitySource === "tailscale" ? "tailscaleNote" : "tailscaleMissing"); wrapMode: Text.WordWrap; font.pixelSize: Commons.Style.space(10) }
   }
 }
