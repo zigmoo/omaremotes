@@ -86,10 +86,22 @@ unfinished. Development began in DIL-3038; current implementation and evidence
 are tracked in [DIL-3044](https://framemoowork.jay-frog.ts.net:8443/knowledge?item=X3NoYXJlZC9kb21haW5zL3BlcnNvbmFsL3Rhc2tzL2FjdGl2ZS9ESUwtMzA0NC5tZA&view=document).
 
 Install the drawer alongside the existing toolbox and provision the selected
-viewer before enabling the plugin. Symlink this checkout into the user Omarchy
-plugins directory as `moo.omaremotes`, then enable it with
-`omarchy plugin enable moo.omaremotes`. Mac clients and local dependencies must be
-prepared separately; only the eligible remote Gliff server has userspace setup.
+viewer before enabling the plugin. Keep the developer repository separate from
+an installed Git clone under resolved `dil.path.data/oma_remotes_tool/plugin`.
+The installed clone tracks the intended branch on `origin`; that origin may be
+the local developer repository or its private SSH address on another Jay-Frog
+machine. Symlink the installed clone into the user Omarchy plugins directory as
+`moo.omaremotes`, then enable it with `omarchy plugin enable moo.omaremotes`.
+OmaPlugCtl can compare that installed revision with new committed source changes
+and apply its normal scan/update flow. A symlink directly into a developer repo
+without an origin does not provide this installed-versus-source comparison.
+Mac clients and local dependencies must be prepared separately; only the eligible
+remote Gliff server has userspace setup.
+
+After deployment, `omarchy-shell moo.omaremotes status` reports the source path,
+whether the loaded panel has its shortcut handler, machine/shortcut counts and
+menu visibility. Verify this live result as well as Git HEAD. A successful plugin
+rescan request alone does not prove that a cached QML component was replaced.
 
 In the noVNC browser viewer, click the left-edge handle to reveal its controls.
 On the Framework Omarchy desktop, Super+F leaves fullscreen and Super plus a

@@ -27,6 +27,16 @@ Item {
     target: root.moduleName
     function show(): void { root.show() }
     function hide(): void { root.close() }
+    function status(): string {
+      return JSON.stringify({
+        plugin: root.moduleName,
+        source: Qt.resolvedUrl("MachinePanel.qml").toString(),
+        shortcutsAvailable: typeof machines.fastConnect === "function",
+        machineCount: machines.machines.length,
+        shortcutCount: Object.keys(machines.launchKeys || {}).length,
+        menuOpen: root.menuOpen
+      })
+    }
   }
   Ui.KeyboardPanel {
     bar: root.bar
