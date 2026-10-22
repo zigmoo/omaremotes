@@ -3,7 +3,7 @@ import QtQuick.Window
 import QtTest
 import Quickshell
 import qs.Commons as Commons
-import "./plugin" as Plugin
+import ".." as Plugin
 
 ShellRoot {
   Window {

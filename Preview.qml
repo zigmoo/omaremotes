@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons as Commons
-import "./plugin" as Plugin
+import "." as Plugin
 
 ShellRoot {
   FloatingWindow {

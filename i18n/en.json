@@ -6,11 +6,16 @@
   "connect": "Connect",
   "open": "Open control window",
   "retry": "Try again",
+  "reconnect": "Reconnect",
   "starting": "Opening %1…",
   "loading": "Loading your machine inventory…",
   "empty": "No machines match your search.",
   "ready": "Choose a machine to open its desktop.",
-  "fit": "Fits your window · Login stays in the viewer",
+  "fit": "Fits the remote desktop to your window",
+  "connected": "Connected to %1.",
+  "connectionFailed": "The connection stopped. Try again to reconnect.",
+  "waitingForDesktop": "Signed in. Waiting for the desktop…",
+  "retryingLogin": "Retrying the saved machine login…",
   "auto": "Automatic",
   "gliff": "Gliff",
   "vnc": "Screen Sharing / VNC",
@@ -21,5 +26,9 @@
   "login": "Finish signing in in the control window.",
   "closed": "Control window closed. Connect again when you’re ready.",
   "disconnect": "Close session",
-  "inventoryNote": "Inventory status is registration state, not a live connection check."
+  "ts.online": "TS online",
+  "ts.offline": "TS offline",
+  "ts.unknown": "TS unknown",
+  "tailscaleNote": "Tailscale availability refreshes every 15 seconds. Screen control is checked when you connect.",
+  "tailscaleMissing": "Tailscale status unavailable. Availability stays unknown; you can still try connecting."
 }

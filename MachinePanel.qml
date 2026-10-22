@@ -16,9 +16,11 @@ Item {
   property string message: strings.t("ready")
   property bool failed: false
   property bool loading: false
+  property bool silentRefresh: false
+  property string availabilitySource: "unavailable"
   property string sessionMachine: ""
   property string sessionState: "closed"
-  readonly property bool busy: controller.running
+  property bool busy: false
   readonly property var filtered: machines.filter(function(m) {
     var query = search.text.toLowerCase().trim()
     return !query || (m.machine + " " + m.label).toLowerCase().indexOf(query) !== -1
@@ -27,61 +29,99 @@ Item {
   signal launched()
   Translations { id: strings }
 
-  function refresh() { if (!busy) invoke("list", "") }
+  function refresh(silent) {
+    if (busy) return
+    silentRefresh = silent === true
+    invoke("list", "")
+  }
   function invoke(action, machine) {
     if (busy) return
+    if (!controller.running) {
+      controller.running = true
+      return
+    }
+    busy = true
     controller.action = action
     loading = action === "list"
-    failed = false
-    if (action === "connect") message = strings.t("starting").arg(machine)
-    else if (action === "list") message = strings.t("loading")
-    var argv = ["bash", "-lc", "exec oma_remotes_tool \"$@\"", "omaremotes", action]
-    if (machine) argv.push(machine)
-    if (action === "connect") argv.push("--route", route)
-    controller.command = argv
-    controller.running = true
+    if (!(action === "list" && silentRefresh)) failed = false
+    if (action === "connect" || action === "reconnect") message = strings.t("starting").arg(machine)
+    else if (action === "list" && !silentRefresh) message = strings.t("loading")
+    var request = {action:action, route:route}
+    if (machine) request.machine = machine
+    controller.write(JSON.stringify(request) + "\n")
   }
   function connectSelected() {
     if (selected && !selected.local) invoke("connect", selected.machine)
   }
-  Component.onCompleted: refresh()
+  Component.onDestruction: if (controller.running) controller.write('{"action":"quit"}\n')
+
+  function acceptResult(result) {
+      loading = false
+      try {
+        if (!result.ok) throw new Error(result.error || "Could not open the control window.")
+        if (controller.action === "list") {
+          machines = result.machines
+          availabilitySource = result.availabilitySource || "unavailable"
+          if (selected) {
+            var updated = result.machines.filter(function(m) { return m.machine === root.selected.machine })
+            selected = updated.length ? updated[0] : null
+          }
+          if (!silentRefresh) message = strings.t("ready")
+        } else if (controller.action === "connect" || controller.action === "reconnect") {
+          sessionMachine = result.machine
+          sessionState = result.state
+          message = result.message
+          if (sessionState === "connected" || sessionState === "viewer_open") launched()
+        } else if (controller.action === "disconnect" || controller.action === "status") {
+          var previousState = sessionState
+          sessionState = result.state
+          if (result.state === "closed") message = strings.t("closed")
+          else if (result.state === "failed") {
+            failed = true
+            message = result.reason || strings.t("connectionFailed")
+          } else if (result.state === "connected") {
+            message = strings.t("connected").arg(sessionMachine)
+            if (previousState !== "connected") launched()
+          } else if (result.state === "authenticated") message = strings.t("waitingForDesktop")
+          else if (result.state === "retrying") message = strings.t("retryingLogin")
+        }
+      } catch (error) {
+        failed = true
+        message = error.message || "Could not read the connection result."
+      }
+      busy = false
+  }
 
   Process {
     id: controller
     property string action: ""
-    stdout: StdioCollector { id: output; waitForEnd: true }
-    stderr: StdioCollector { id: errors; waitForEnd: true }
-    onExited: function(exitCode) {
-      root.loading = false
-      try {
-        var result = JSON.parse(output.text)
-        if (!result.ok || exitCode !== 0) throw new Error(result.error || "Could not open the control window.")
-        if (action === "list") {
-          root.machines = result.machines
-          if (root.selected) {
-            var updated = result.machines.filter(function(m) { return m.machine === root.selected.machine })
-            root.selected = updated.length ? updated[0] : null
-          }
-          root.message = strings.t("ready")
-        } else if (action === "connect") {
-          root.sessionMachine = result.machine
-          root.sessionState = result.state
-          root.message = result.message
-          root.launched()
-        } else if (action === "disconnect" || action === "status") {
-          root.sessionState = result.state
-          if (result.state === "closed") root.message = strings.t("closed")
-        }
-      } catch (error) {
-        root.failed = true
-        root.message = error.message || "Could not read the connection result."
+    property string lastError: ""
+    command: ["bash", "-lc", "exec oma_remotes_tool serve"]
+    running: true
+    stdinEnabled: true
+    onStarted: root.refresh()
+    stdout: SplitParser {
+      onRead: function(data) {
+        try { root.acceptResult(JSON.parse(data)) }
+        catch (error) { root.acceptResult({ok:false,error:"Could not read the connection result."}) }
       }
     }
+    stderr: SplitParser { onRead: function(data) { controller.lastError = data.slice(0, 400) } }
+    onExited: function(exitCode) {
+      root.busy = false
+      if (exitCode !== 0) root.acceptResult({ok:false,error:"The connection helper stopped. Press Refresh to restart it."})
+    }
+  }
+  Timer {
+    interval: 15000
+    repeat: true
+    running: root.visible
+    onTriggered: if (!root.busy) root.refresh(true)
   }
   Timer {
     interval: 5000
     repeat: true
-    running: root.visible && root.sessionMachine !== "" && root.sessionState !== "closed"
+    running: root.visible && root.sessionMachine !== "" && root.sessionState !== "closed" && root.sessionState !== "failed"
     onTriggered: if (!root.busy) root.invoke("status", root.sessionMachine)
   }
 
@@ -140,16 +180,16 @@ Item {
           spacing: Commons.Style.space(10)
           Rectangle {
             width: Commons.Style.space(7); height: width; radius: width / 2
-            color: machineRow.modelData.local ? Commons.Color.accent : machineRow.modelData.status === "active" ? "#91b989" : "#8b8d97"
+            color: machineRow.modelData.local ? Commons.Color.accent : machineRow.modelData.availability === "online" ? "#91b989" : machineRow.modelData.availability === "offline" ? "#c98780" : "#8b8d97"
           }
           ColumnLayout {
             Layout.fillWidth: true
             spacing: Commons.Style.space(3)
             PlainText { Layout.fillWidth: true; text: machineRow.modelData.machine; elide: Text.ElideRight; font.bold: true }
-            PlainText { Layout.fillWidth: true; text: machineRow.modelData.label; elide: Text.ElideRight; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
+            PlainText { Layout.fillWidth: true; text: machineRow.modelData.label + (machineRow.modelData.platform ? " · " + machineRow.modelData.platform : ""); elide: Text.ElideRight; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
           }
           PlainText {
-            text: machineRow.modelData.local ? strings.t("local") : machineRow.modelData.status
+            text: machineRow.modelData.local ? strings.t("local") : strings.t("ts." + machineRow.modelData.availability)
             opacity: 0.6; font.pixelSize: Commons.Style.space(11)
           }
         }
@@ -186,6 +226,11 @@ Item {
         onClicked: root.invoke("disconnect", root.sessionMachine)
       }
       Ui.Button {
+        visible: root.sessionState !== "closed" && root.selected && root.selected.machine === root.sessionMachine
+        text: strings.t("reconnect"); focusable: true; enabled: !root.busy
+        onClicked: root.invoke("reconnect", root.sessionMachine)
+      }
+      Ui.Button {
         objectName: "connectButton"
         text: root.busy ? "…" : root.failed ? strings.t("retry") : strings.t("connect")
         foreground: Commons.Color.accent
@@ -195,6 +240,6 @@ Item {
         onClicked: root.connectSelected()
       }
     }
-    PlainText { Layout.fillWidth: true; text: strings.t("inventoryNote"); wrapMode: Text.WordWrap; font.pixelSize: Commons.Style.space(10); opacity: 0.45 }
+    PlainText { Layout.fillWidth: true; text: strings.t(root.availabilitySource === "tailscale" ? "tailscaleNote" : "tailscaleMissing"); wrapMode: Text.WordWrap; font.pixelSize: Commons.Style.space(10); opacity: 0.45 }
   }
 }
