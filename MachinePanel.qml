@@ -21,13 +21,41 @@ Item {
   property string sessionMachine: ""
   property string sessionState: "closed"
   property bool busy: false
+  property var launchKeys: ({})
+  property string routeNote: ""
   readonly property var filtered: machines.filter(function(m) {
     var query = search.text.toLowerCase().trim()
     return !query || (m.machine + " " + m.label).toLowerCase().indexOf(query) !== -1
   })
-  readonly property Item focusTarget: search
+  readonly property Item focusTarget: machineList
   signal launched()
   Translations { id: strings }
+
+  function assignLaunchKeys(entries) {
+    var keys = Object.assign({}, launchKeys)
+    var used = Object.keys(keys).map(function(machine) { return keys[machine] })
+    var alphabet = "1234567890abcdefghijklmnopqrstuvwxyz"
+    entries.filter(function(m) { return !m.local }).map(function(m) { return m.machine }).sort().forEach(function(machine) {
+      if (keys[machine]) return
+      for (var i = 0; i < alphabet.length; i++) {
+        if (used.indexOf(alphabet[i]) === -1) {
+          keys[machine] = alphabet[i]
+          used.push(alphabet[i])
+          break
+        }
+      }
+    })
+    launchKeys = keys
+  }
+  function fastConnect(key) {
+    if (busy) return false
+    var matches = filtered.filter(function(m) { return !m.local && root.launchKeys[m.machine] === key })
+    if (matches.length !== 1) return false
+    selected = matches[0]
+    machineList.currentIndex = filtered.indexOf(selected)
+    invoke("connect", selected.machine)
+    return true
+  }
 
   function refresh(silent) {
     if (busy) return
@@ -44,7 +72,10 @@ Item {
     controller.action = action
     loading = action === "list"
     if (!(action === "list" && silentRefresh)) failed = false
-    if (action === "connect" || action === "reconnect") message = strings.t("starting").arg(machine)
+    if (action === "connect" || action === "reconnect") {
+      message = strings.t("starting").arg(machine)
+      routeNote = ""
+    }
     else if (action === "list" && !silentRefresh) message = strings.t("loading")
     var request = {action:action, route:route}
     if (machine) request.machine = machine
@@ -60,6 +91,7 @@ Item {
       try {
         if (!result.ok) throw new Error(result.error || "Could not open the control window.")
         if (controller.action === "list") {
+          assignLaunchKeys(result.machines)
           machines = result.machines
           availabilitySource = result.availabilitySource || "unavailable"
           if (selected) {
@@ -71,6 +103,7 @@ Item {
           sessionMachine = result.machine
           sessionState = result.state
           message = result.message
+          routeNote = result.fallbackReason || ""
           if (sessionState === "connected" || sessionState === "viewer_open") launched()
         } else if (controller.action === "disconnect" || controller.action === "status") {
           var previousState = sessionState
@@ -146,9 +179,18 @@ Item {
       onTextChanged: machineList.currentIndex = -1
       Keys.onDownPressed: { machineList.forceActiveFocus(); machineList.currentIndex = 0 }
       Keys.onReturnPressed: {
-        if (root.filtered.length === 1) root.selected = root.filtered[0]
-        root.connectSelected()
+        if (root.filtered.length === 1) {
+          root.selected = root.filtered[0]
+          root.connectSelected()
+        } else machineList.forceActiveFocus()
       }
+    }
+    PlainText {
+      Layout.fillWidth: true
+      text: search.activeFocus ? strings.t("searchKeys") : strings.t("launchKeys")
+      wrapMode: Text.WordWrap
+      opacity: 0.6
+      font.pixelSize: Commons.Style.space(11)
     }
     ListView {
       id: machineList
@@ -161,36 +203,83 @@ Item {
       keyNavigationEnabled: true
       onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < root.filtered.length) root.selected = root.filtered[currentIndex]
       Keys.onReturnPressed: root.connectSelected()
+      Keys.onPressed: function(event) {
+        if (!activeFocus || event.isAutoRepeat || event.modifiers !== Qt.NoModifier) return
+        if (event.key === Qt.Key_Slash) {
+          search.forceActiveFocus()
+          event.accepted = true
+        } else if (root.fastConnect(event.text.toLowerCase())) event.accepted = true
+      }
       Controls.ScrollBar.vertical: Controls.ScrollBar {}
       delegate: Rectangle {
         id: machineRow
         required property var modelData
         required property int index
+        readonly property bool isSelected: !!root.selected && root.selected.machine === modelData.machine
         width: machineList.width
         height: Commons.Style.space(64)
         radius: Commons.Style.space(7)
-        color: root.selected && root.selected.machine === modelData.machine ? Qt.alpha(Commons.Color.accent, 0.17) : hover.hovered ? Qt.alpha(Commons.Color.popups.text, 0.07) : "transparent"
-        border.width: root.selected && root.selected.machine === modelData.machine ? 1 : 0
+        color: isSelected ? Qt.alpha(Commons.Color.accent, 0.17) : hover.hovered ? Qt.alpha(Commons.Color.popups.text, 0.07) : "transparent"
+        border.width: isSelected ? 1 : 0
         border.color: Commons.Color.accent
         HoverHandler { id: hover }
-        TapHandler { onTapped: { root.selected = machineRow.modelData; machineList.currentIndex = machineRow.index } }
         RowLayout {
           anchors.fill: parent
           anchors.margins: Commons.Style.space(10)
           spacing: Commons.Style.space(10)
-          Rectangle {
-            width: Commons.Style.space(7); height: width; radius: width / 2
-            color: machineRow.modelData.local ? Commons.Color.accent : machineRow.modelData.availability === "online" ? "#91b989" : machineRow.modelData.availability === "offline" ? "#c98780" : "#8b8d97"
-          }
-          ColumnLayout {
+          Item {
             Layout.fillWidth: true
-            spacing: Commons.Style.space(3)
-            PlainText { Layout.fillWidth: true; text: machineRow.modelData.machine; elide: Text.ElideRight; font.bold: true }
-            PlainText { Layout.fillWidth: true; text: machineRow.modelData.label + (machineRow.modelData.platform ? " · " + machineRow.modelData.platform : ""); elide: Text.ElideRight; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
+            Layout.fillHeight: true
+            TapHandler { onTapped: { root.selected = machineRow.modelData; machineList.currentIndex = machineRow.index; machineList.forceActiveFocus() } }
+            RowLayout {
+              anchors.fill: parent
+              spacing: Commons.Style.space(10)
+              Rectangle {
+                visible: !machineRow.modelData.local && !!root.launchKeys[machineRow.modelData.machine]
+                Layout.preferredWidth: Commons.Style.space(23)
+                Layout.preferredHeight: Commons.Style.space(25)
+                radius: Commons.Style.space(4)
+                color: Qt.alpha(Commons.Color.popups.text, 0.06)
+                border.color: Qt.alpha(Commons.Color.popups.text, 0.25)
+                PlainText { anchors.centerIn: parent; text: root.launchKeys[machineRow.modelData.machine] || ""; font.bold: true }
+              }
+              Rectangle {
+                width: Commons.Style.space(7); height: width; radius: width / 2
+                color: machineRow.modelData.local ? Commons.Color.accent : machineRow.modelData.availability === "online" ? "#91b989" : machineRow.modelData.availability === "offline" ? "#c98780" : "#8b8d97"
+              }
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Commons.Style.space(3)
+                PlainText { Layout.fillWidth: true; text: machineRow.modelData.machine; elide: Text.ElideRight; font.bold: true }
+                PlainText { Layout.fillWidth: true; text: machineRow.modelData.label + (machineRow.modelData.platform ? " · " + machineRow.modelData.platform : ""); elide: Text.ElideRight; opacity: 0.55; font.pixelSize: Commons.Style.space(11) }
+              }
+              PlainText {
+                text: machineRow.modelData.local ? strings.t("local") : strings.t("ts." + machineRow.modelData.availability)
+                opacity: 0.6; font.pixelSize: Commons.Style.space(11)
+              }
+            }
           }
-          PlainText {
-            text: machineRow.modelData.local ? strings.t("local") : strings.t("ts." + machineRow.modelData.availability)
-            opacity: 0.6; font.pixelSize: Commons.Style.space(11)
+          Item {
+            Layout.preferredWidth: rowConnect.implicitWidth
+            Layout.fillHeight: true
+            Ui.Button {
+              id: rowConnect
+              objectName: "connect-" + machineRow.modelData.machine
+              anchors.centerIn: parent
+              visible: hover.hovered || machineRow.isSelected || activeFocus
+              text: strings.t("connect")
+              tooltipText: strings.t("connectMachine").arg(machineRow.modelData.machine)
+              Accessible.name: tooltipText
+              foreground: Commons.Color.accent
+              bordered: true
+              focusable: true
+              enabled: !root.busy && !machineRow.modelData.local
+              onClicked: {
+                root.selected = machineRow.modelData
+                machineList.currentIndex = machineRow.index
+                root.invoke("connect", machineRow.modelData.machine)
+              }
+            }
           }
         }
       }
@@ -216,6 +305,15 @@ Item {
       wrapMode: Text.WordWrap
       color: root.failed ? "#e79a90" : Commons.Color.popups.text
       font.pixelSize: Commons.Style.space(12)
+    }
+    PlainText {
+      objectName: "routeFeedback"
+      Layout.fillWidth: true
+      visible: root.routeNote !== ""
+      text: root.routeNote
+      wrapMode: Text.WordWrap
+      opacity: 0.7
+      font.pixelSize: Commons.Style.space(11)
     }
     RowLayout {
       Layout.fillWidth: true

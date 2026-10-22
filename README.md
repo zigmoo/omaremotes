@@ -21,6 +21,22 @@ not a reachability signal. Connect separately checks the screen-control service.
 All inventory entries remain searchable. Machines without a compatible service
 show an actionable error.
 
+Hover a row to reveal its Connect button. The picker initially focuses the
+machine list: press the key shown on a row to connect, or `/` to focus search.
+Typing in search never launches a shortcut; Down returns to the list and Enter
+opens a single matching machine. Keys stay assigned to machines while the picker
+is running, independent of Tailscale sorting and search filters. A fresh picker
+assigns available keys in machine-name order; at most 36 machines have shortcuts.
+Arrow keys and Enter remain available for every row.
+
+For a Linux host reached by trusted SSH, Connect can install a missing
+`gliff-server` into `~/.local/bin` from a prepared local binary after checking
+architecture and runtime compatibility. It requires a running Hyprland session
+and uses no sudo. Discovery alone never installs. Automatic VNC fallbacks carry
+the specific reason Gliff is unavailable; the picker retains that explanation
+below its connection message. The two Pis inspected for this POC are not eligible:
+pi500 runs labwc, while pi5-8g has no graphical session for the SSH user.
+
 Mac profiles and client installation paths belong to `setting_tool` under
 `omaRemotesRuntime`. Each profile selects `isharescreen` or `novnc-ard`, a
 credential profile, and an opt-in `clipboard` flag; native profiles can select
@@ -39,6 +55,12 @@ metrics. The legacy Remmina route retains manual login and disables password
 storage. Gliff uses CPU video; legacy clipboard sharing and Remmina telemetry
 remain disabled.
 
+Screen Sharing authentication and desktop unlocking are distinct. The current
+`connected` state confirms authentication plus rendered frames; it does not yet
+verify that the intended macOS user is unlocked. Completing both steps with the
+saved machine credential is required follow-on work. Session selection for a
+different user is not an unlock command for the current user's locked desktop.
+
 Mac text clipboard sharing defaults off and must be enabled per profile. When
 enabled, it can read and replace text on both endpoints. Session receipts and
 metrics contain operational metadata only, never clipboard contents, screen
@@ -50,7 +72,7 @@ The managed POC observations on 2026-10-22 are:
 | Target | Selected route | Observed result |
 | --- | --- | --- |
 | Small M1 (`moosacrem1`, macOS 26.5.1) | Native iShareScreen, AVC | Connected; synthetic text clipboard passed in both directions. |
-| ProMax (`moosacrem1promax`, macOS 27.0.1) | Browser noVNC-ARD, standard TCP | Connected and rendered; ZBook-to-Mac text clipboard passed. Mac-to-ZBook clipboard timed out, including after an explicit fetch. Inbound clipboard remains unresolved. |
+| ProMax (`moosacrem1promax`, macOS 27.0.1) | Browser noVNC-ARD, standard TCP | Connected and rendered; ZBook-to-Mac text clipboard passed. A later isolated diagnostic decoded inbound text and completed browser clipboard writes, but the local Wayland clipboard still did not match. Inbound clipboard remains unresolved. |
 
 HEVC is deferred after visibly corrupted output; draw counts alone did not prove
 image correctness. These results do not isolate the ProMax clipboard failure to
@@ -66,7 +88,13 @@ are tracked in [DIL-3044](https://framemoowork.jay-frog.ts.net:8443/knowledge?it
 Install the drawer alongside the existing toolbox and provision the selected
 viewer before enabling the plugin. Symlink this checkout into the user Omarchy
 plugins directory as `moo.omaremotes`, then enable it with
-`omarchy plugin enable moo.omaremotes`. The runtime does not install dependencies.
+`omarchy plugin enable moo.omaremotes`. Mac clients and local dependencies must be
+prepared separately; only the eligible remote Gliff server has userspace setup.
+
+In the noVNC browser viewer, click the left-edge handle to reveal its controls.
+On the Framework Omarchy desktop, Super+F leaves fullscreen and Super plus a
+workspace number changes workspace while keeping the remote session connected.
+Keep the viewer's existing hiding control bar.
 
 - Common: Omarchy/Quickshell, plain PHP CLI, DIL owner tools, Tailscale, Hyprland
   and systemd user services.
