@@ -1,5 +1,7 @@
 # OmaRemotes
 
+Public source: [zigmoo/omaremotes](https://github.com/zigmoo/omaremotes). Licensed under Apache-2.0. This early plugin requires the DIL toolbox, including machine_registry_tool and oma_remotes_tool, plus a prepared viewer for the selected connection route. Publishing this source does not make the plugin a standalone remote desktop client; setup requirements and current limitations are described below.
+
 Pick a registered machine, then Connect. Automatic routing uses a saved native
 iShareScreen or browser noVNC-ARD profile for configured Macs. Legacy Gliff for
 Hyprland, Remmina VNC for Macs, and Remmina RDP for Windows remain available.
