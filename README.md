@@ -1,6 +1,25 @@
 # OmaRemotes
 
-Public source: [zigmoo/omaremotes](https://github.com/zigmoo/omaremotes). Licensed under Apache-2.0. This early plugin requires the DIL toolbox, including machine_registry_tool and oma_remotes_tool, plus a prepared viewer for the selected connection route. Publishing this source does not make the plugin a standalone remote desktop client; setup requirements and current limitations are described below.
+Public source: [zigmoo/omaremotes](https://github.com/zigmoo/omaremotes). Licensed under Apache-2.0. See [LICENSE](LICENSE). This early plugin requires the DIL toolbox, including machine_registry_tool and oma_remotes_tool, plus a prepared viewer for the selected connection route. Publishing this source does not make the plugin a standalone remote desktop client; setup requirements and current limitations are described below.
+
+## Install
+
+The marketplace checkout loads the bar widget. Connect stays unavailable until the DIL toolbox, machine inventory, and the selected viewer are already installed. Plugin installation does not copy those tools, does not write credentials, and does not start a remote session. A later Connect can install a missing `gliff-server` into `~/.local/bin` only for an eligible Linux host, after architecture and runtime checks, and without sudo. Discovery alone never installs it.
+
+```bash
+omarchy plugin add https://github.com/zigmoo/omaremotes.git
+omarchy plugin enable moo.omaremotes
+```
+
+Common dependencies are Omarchy/Quickshell, a plain PHP CLI, the DIL owner tools, Tailscale, Hyprland, and systemd user services. Mac routes also need the configured iShareScreen or noVNC-ARD checkout. Legacy routes need Gliff/OpenSSH or Remmina.
+
+## Remove
+
+```bash
+omarchy plugin remove moo.omaremotes
+```
+
+Removal deletes the plugin checkout. It leaves viewer checkouts, credentials, Tailscale state, and any remote session already running.
 
 Pick a registered machine, then Connect. Automatic routing uses a saved native
 iShareScreen or browser noVNC-ARD profile for configured Macs. Legacy Gliff for
